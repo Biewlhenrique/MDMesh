@@ -61,56 +61,6 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
     },
   },
   {
-    key: 'stay-awake-on',
-    label: 'Keep screen on while charging',
-    description: 'Hold the display awake whenever the device is plugged in.',
-    request: {
-      type: 'policy.apply',
-      requiresCapability: 'policy.stayAwake',
-      payload: JSON.stringify({ policy: 'stayAwake', value: true }),
-    },
-  },
-  {
-    key: 'stay-awake-off',
-    label: 'Normal screen timeout',
-    description: 'Let the screen turn itself off again, charging or not.',
-    request: {
-      type: 'policy.apply',
-      requiresCapability: 'policy.stayAwake',
-      payload: JSON.stringify({ policy: 'stayAwake', value: false }),
-    },
-  },
-  {
-    key: 'statusbar-lock',
-    label: 'Lock status bar',
-    description: 'Block the pull-down status bar, notifications and quick settings.',
-    request: {
-      type: 'policy.apply',
-      requiresCapability: 'policy.statusBar',
-      payload: JSON.stringify({ policy: 'statusBar', value: false }),
-    },
-  },
-  {
-    key: 'statusbar-unlock',
-    label: 'Unlock status bar',
-    description: 'Give the pull-down status bar back.',
-    request: {
-      type: 'policy.apply',
-      requiresCapability: 'policy.statusBar',
-      payload: JSON.stringify({ policy: 'statusBar', value: true }),
-    },
-  },
-  {
-    key: 'brightness-auto',
-    label: 'Automatic brightness',
-    description: 'Hand the screen brightness back to the light sensor.',
-    request: {
-      type: 'device.brightness',
-      requiresCapability: 'device.brightness',
-      payload: JSON.stringify({ auto: true }),
-    },
-  },
-  {
     key: 'reboot',
     label: 'Reboot device',
     description: 'Restart the device now.',
@@ -259,6 +209,56 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
       payload: JSON.stringify({ mode: 'alwaysOn' }),
     },
+  },
+  {
+    key: 'screen-stay-awake', label: 'Screen: Keep on while charging', group: 'safe',
+    description: 'Hold the display awake whenever the device is plugged in.',
+    request: {
+      type: 'policy.apply', requiresCapability: 'policy.stayAwake',
+      payload: JSON.stringify({ policy: 'stayAwake', value: true }),
+    },
+  },
+  {
+    key: 'screen-normal-timeout', label: 'Screen: Normal timeout', group: 'safe',
+    description: 'Let the screen turn itself off again, charging or not.',
+    request: {
+      type: 'policy.apply', requiresCapability: 'policy.stayAwake',
+      payload: JSON.stringify({ policy: 'stayAwake', value: false }),
+    },
+  },
+  {
+    key: 'statusbar-lock', label: 'Status bar: Lock', group: 'safe',
+    description: 'Block the pull-down status bar, notifications and quick settings.',
+    request: {
+      type: 'policy.apply', requiresCapability: 'policy.statusBar',
+      payload: JSON.stringify({ policy: 'statusBar', value: false }),
+    },
+  },
+  {
+    key: 'statusbar-unlock', label: 'Status bar: Unlock', group: 'safe',
+    description: 'Give the pull-down status bar back.',
+    request: {
+      type: 'policy.apply', requiresCapability: 'policy.statusBar',
+      payload: JSON.stringify({ policy: 'statusBar', value: true }),
+    },
+  },
+  {
+    key: 'brightness-auto', label: 'Brightness: Automatic', group: 'safe',
+    description: 'Hand the screen brightness back to the light sensor.',
+    request: {
+      type: 'device.brightness', requiresCapability: 'device.brightness',
+      payload: JSON.stringify({ auto: true }),
+    },
+  },
+  {
+    key: 'brightness-manual', label: 'Brightness: Set level', group: 'safe',
+    description: 'Pin the screen brightness (0-255). Turns auto-brightness off.',
+    params: [{ key: 'value', label: 'Level (0-255)', kind: 'number', required: true, placeholder: '180' }],
+    request: { type: 'device.brightness', requiresCapability: 'device.brightness' },
+    build: (v) => ({
+      type: 'device.brightness', requiresCapability: 'device.brightness',
+      payload: JSON.stringify({ auto: false, value: Number(v.value) }),
+    }),
   },
   {
     key: 'location-passive', label: 'Location: Battery-saver', group: 'safe',
