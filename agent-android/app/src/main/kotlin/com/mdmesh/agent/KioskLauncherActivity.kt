@@ -128,12 +128,18 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     /** @return true if a crash loop tripped (kiosk dropped + recovery shown), so the caller stops. */
+    /**
+     * Stops re-launching a pinned app that keeps disappearing, and says so on screen.
+     *
+     * It deliberately does NOT leave kiosk. Dropping lock task here was an unlocked way out of a
+     * locked device: holding the back button long enough looks exactly like a crash loop from up
+     * here, and the device would hand itself over without the admin password ever being asked for.
+     * The device stays pinned; the operator gets a retry, and the way out is still the exit
+     * affordance (with its password) or a kiosk.exit from the console.
+     */
     private fun bailOnCrashLoop(): Boolean {
         if (!crashGuard.isCrashLoopDetected()) return false
-        events.record("kioskCrashLoop", "dropped kiosk after repeated crashes")
-        controller.exit()
-        active = null
-        lifecycleScope.launch { store.save(null) }
+        events.record("kioskCrashLoop", "stopped relaunching the pinned app after repeated exits")
         setContentView(recoveryView())
         return true
     }
@@ -314,14 +320,28 @@ class KioskLauncherActivity : ComponentActivity() {
             setPadding(dp(28), 0, dp(28), 0)
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
-        col.addView(centeredText("Kiosk stopped", 22f, ALERT, bold = true))
+        col.addView(centeredText("App keeps closing", 22f, ALERT, bold = true))
         col.addView(
             centeredText(
-                "A kiosk app crashed repeatedly, so kiosk mode was disabled to keep the device usable.",
+                "The kiosk app closed repeatedly, so it is no longer being reopened. " +
+                    "The device stays locked.",
                 14f,
                 MUTED,
-            ).apply { setPadding(0, dp(12), 0, 0) },
+            ).apply { setPadding(0, dp(12), 0, dp(12)) },
         )
+        active?.let { p ->
+            col.addView(
+                Button(this@KioskLauncherActivity).apply {
+                    text = "Try again"
+                    setOnClickListener {
+                        crashGuard.reset()
+                        applyState(p)
+                    }
+                },
+            )
+            // The admin still needs their own way out of a device that won't run its app.
+            addExitAffordance(p, col)
+        }
         addView(col)
     }
 

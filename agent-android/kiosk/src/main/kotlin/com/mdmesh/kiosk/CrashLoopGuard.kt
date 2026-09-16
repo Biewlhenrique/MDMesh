@@ -57,6 +57,11 @@ class CrashLoopGuard(
         return store.counter > LOOP_CRASHES
     }
 
+    /** Clears the counter — the caller decided the device is healthy again (an operator retry). */
+    fun reset() {
+        store.write(counter = 0, lastFaultTime = 0L)
+    }
+
     companion object {
         /** Rolling window for counting crashes, in millis. */
         const val LOOP_TIME_SPAN = 60_000L
