@@ -38,9 +38,15 @@ object DeviceAction {
      */
     const val BRIGHTNESS = "device.brightness"
 
+    /**
+     * Save a Wi-Fi network so the device can join it later — staging a tablet for the network it
+     * will meet at its destination. Payload: `{ "ssid", "password", "security" }`.
+     */
+    const val WIFI_CONFIGURE = "device.wifiConfigure"
+
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode", "brightness",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "brightness", "wifiConfigure",
     )
 }

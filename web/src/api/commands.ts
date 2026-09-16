@@ -243,6 +243,23 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     },
   },
   {
+    key: 'wifi-configure', label: 'Wi-Fi: Save network', group: 'safe',
+    description: 'Save a network so the device joins it when in range — stage a tablet for the site it is going to.',
+    params: [
+      { key: 'ssid', label: 'SSID', kind: 'text', required: true },
+      { key: 'password', label: 'Password (blank = open network)', kind: 'password' },
+    ],
+    request: { type: 'device.wifiConfigure', requiresCapability: 'device.wifiConfigure' },
+    build: (v) => ({
+      type: 'device.wifiConfigure', requiresCapability: 'device.wifiConfigure',
+      payload: JSON.stringify({
+        ssid: v.ssid ?? '',
+        password: v.password ?? '',
+        security: v.password ? 'WPA' : 'NONE',
+      }),
+    }),
+  },
+  {
     key: 'brightness-auto', label: 'Brightness: Automatic', group: 'safe',
     description: 'Hand the screen brightness back to the light sensor.',
     request: {

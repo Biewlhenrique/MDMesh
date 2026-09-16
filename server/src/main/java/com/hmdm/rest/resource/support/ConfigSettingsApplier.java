@@ -80,6 +80,7 @@ public class ConfigSettingsApplier {
             queued += togglePolicy(number, "stayAwake", c.getKioskScreenOn());
 
             queued += brightness(number, c);
+            queued += wifiNetwork(number, c);
 
             if (queued > 0) {
                 wakeHub.wake(number, "commands");
@@ -122,6 +123,28 @@ public class ConfigSettingsApplier {
             payload.put("value", level);
         }
         return queue(deviceNumber, "device.brightness", payload, "device.brightness");
+    }
+
+    /**
+     * Queues {@code device.wifiConfigure} for the network the configuration names. The same SSID
+     * is baked into the enrollment QR, but that only helps a device being provisioned right now —
+     * this hands it to a device that is already enrolled, so a tablet staged on one network arrives
+     * at its destination already knowing the network it will find there.
+     */
+    private int wifiNetwork(String deviceNumber, Configuration c) {
+        String ssid = c.getWifiSSID();
+        if (ssid == null || ssid.trim().isEmpty()) {
+            return 0;
+        }
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("ssid", ssid.trim());
+        if (c.getWifiPassword() != null && !c.getWifiPassword().isEmpty()) {
+            payload.put("password", c.getWifiPassword());
+        }
+        if (c.getWifiSecurityType() != null && !c.getWifiSecurityType().trim().isEmpty()) {
+            payload.put("security", c.getWifiSecurityType().trim());
+        }
+        return queue(deviceNumber, "device.wifiConfigure", payload, "device.wifiConfigure");
     }
 
     private int queue(String deviceNumber, String type, ObjectNode payload, String capability) {

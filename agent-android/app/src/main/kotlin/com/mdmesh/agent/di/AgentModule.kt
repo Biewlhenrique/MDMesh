@@ -24,6 +24,7 @@ import com.mdmesh.core.command.handlers.DevicePasscodeResetHandler
 import com.mdmesh.core.command.handlers.DeviceRebootHandler
 import com.mdmesh.core.command.handlers.DeviceRingHandler
 import com.mdmesh.core.command.handlers.DeviceBrightnessHandler
+import com.mdmesh.core.command.handlers.DeviceWifiConfigureHandler
 import com.mdmesh.core.command.handlers.DeviceLocationModeHandler
 import com.mdmesh.core.command.handlers.DevicePowerModeHandler
 import com.mdmesh.core.command.handlers.DeviceRingStopHandler
@@ -325,4 +326,9 @@ object AgentModule {
     @IntoSet
     fun provideBrightnessHandler(handle: DpmHandle): CommandHandler =
         DeviceBrightnessHandler(handle)
+
+    @Provides
+    @IntoSet
+    fun provideWifiConfigureHandler(@ApplicationContext context: Context): CommandHandler =
+        DeviceWifiConfigureHandler(context)
 }
