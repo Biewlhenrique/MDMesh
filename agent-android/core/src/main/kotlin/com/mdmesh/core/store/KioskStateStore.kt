@@ -25,6 +25,13 @@ interface KioskStateStore {
     suspend fun load(): KioskApplyPayload?
 
     /**
+     * The most recent payload ever applied, kept across `kiosk.exit` (which clears [load]). Lets the
+     * device re-enter kiosk — with the same allowlist and exit password — without waiting for the
+     * server to queue another `kiosk.enter`. Null only before the first one ever arrives.
+     */
+    suspend fun loadLast(): KioskApplyPayload?
+
+    /**
      * Cold stream of the current kiosk payload (or `null` when not in kiosk), emitting on every
      * change. The launcher collects this so a background `kiosk.enter`/`kiosk.exit` command — which
      * runs in the check-in service, not the foreground activity — is reflected on screen
@@ -38,15 +45,22 @@ class DataStoreKioskStateStore(private val context: Context) : KioskStateStore {
     override suspend fun save(payload: KioskApplyPayload?) {
         context.kioskDataStore.edit {
             if (payload == null) {
-                it.remove(KEY)
+                it.remove(KEY) // KEY_LAST deliberately survives, so re-entry has something to apply
             } else {
-                it[KEY] = ProtocolJson.json.encodeToString(KioskApplyPayload.serializer(), payload)
+                val encoded = ProtocolJson.json.encodeToString(KioskApplyPayload.serializer(), payload)
+                it[KEY] = encoded
+                it[KEY_LAST] = encoded
             }
         }
     }
 
     override suspend fun load(): KioskApplyPayload? {
         val raw = context.kioskDataStore.data.map { it[KEY] }.first() ?: return null
+        return decode(raw)
+    }
+
+    override suspend fun loadLast(): KioskApplyPayload? {
+        val raw = context.kioskDataStore.data.map { it[KEY_LAST] }.first() ?: return null
         return decode(raw)
     }
 
@@ -59,18 +73,23 @@ class DataStoreKioskStateStore(private val context: Context) : KioskStateStore {
 
     private companion object {
         val KEY = stringPreferencesKey("kiosk_payload")
+        val KEY_LAST = stringPreferencesKey("kiosk_payload_last")
     }
 }
 
 /** In-memory [KioskStateStore] for unit tests. */
 class InMemoryKioskStateStore(initial: KioskApplyPayload? = null) : KioskStateStore {
     private val state = MutableStateFlow(initial)
+    private var last: KioskApplyPayload? = initial
 
     override suspend fun save(payload: KioskApplyPayload?) {
         state.value = payload
+        if (payload != null) last = payload
     }
 
     override suspend fun load(): KioskApplyPayload? = state.value
+
+    override suspend fun loadLast(): KioskApplyPayload? = last
 
     override fun flow(): Flow<KioskApplyPayload?> = state
 }

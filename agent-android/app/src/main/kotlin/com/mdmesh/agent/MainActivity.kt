@@ -187,13 +187,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Re-applies the last kiosk payload the server sent. Without a saved payload there is nothing
-     * to restore — entering with defaults would pin the device to the agent itself, which looks
-     * like a lock-up to whoever pressed the button.
+     * Re-applies the last kiosk payload the server sent — allowlist and exit password included, so
+     * leaving again still costs the same PIN. Falls back to the sticky copy because `kiosk.exit`
+     * clears the current one, which is exactly when this button is worth pressing. With nothing
+     * ever received there is nothing to restore: entering with defaults would pin the device to the
+     * agent itself, which reads as a lock-up to whoever pressed the button.
      */
     private fun reEnterKiosk() {
         lifecycleScope.launch {
-            val payload = kioskStateStore.load()
+            val payload = kioskStateStore.load() ?: kioskStateStore.loadLast()
             if (payload == null) {
                 toast("No kiosk configuration received from the server yet")
                 return@launch

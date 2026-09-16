@@ -22,4 +22,19 @@ class KioskStateStoreTest {
         store.save(null)
         assertNull(store.load())
     }
+
+    @Test
+    fun `last payload survives a clear so kiosk can be re-entered`() = runBlocking {
+        val store = InMemoryKioskStateStore()
+        val p = KioskApplyPayload(pinPackage = "com.x", password = "1234")
+        store.save(p)
+        store.save(null)
+        assertNull(store.load())
+        assertEquals(p, store.loadLast())
+    }
+
+    @Test
+    fun `last payload is null until one is applied`() = runBlocking {
+        assertNull(InMemoryKioskStateStore().loadLast())
+    }
 }
