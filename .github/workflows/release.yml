@@ -40,7 +40,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # packages: '' — the action's default set includes the legacy `tools` package, which Google
+      # removed from the SDK repository; sdkmanager then exits 1 and fails the job. AGP resolves
+      # the build-tools/platform it needs on its own.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10"
