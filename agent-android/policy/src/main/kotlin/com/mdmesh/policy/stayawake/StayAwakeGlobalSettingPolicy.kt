@@ -40,9 +40,7 @@ internal class StayAwakeGlobalSettingPolicy(
             Settings.Global.STAY_ON_WHILE_PLUGGED_IN,
             (if (enabled) ALL_CHARGERS else 0).toString(),
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            applyScreenTimeout(enabled)
-        }
+        applyScreenTimeout(enabled)
         PolicyOutcome.Applied
     }.getOrElse { PolicyOutcome.Failed(it.message ?: "stayAwake setEnabled failed") }
 
@@ -69,7 +67,9 @@ internal class StayAwakeGlobalSettingPolicy(
         }
     }
 
+    /** The guard lives here, at the call: setSystemSetting is API 28+ and minSdk is 24. */
     private fun setTimeout(millis: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
         handle.dpm.setSystemSetting(
             handle.admin,
             Settings.System.SCREEN_OFF_TIMEOUT,
