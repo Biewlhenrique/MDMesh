@@ -54,12 +54,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class KioskLauncherActivity : ComponentActivity() {
 
-    /** Set by [CheckInService] when connectivity drops, to surface the Wi-Fi escape hatch. */
-    private var networkLost = false
-
-    /** True while the settings app is on the lock-task allowlist for a Wi-Fi trip. */
-    private var settingsAllowed = false
-
     @Inject lateinit var store: KioskStateStore
     @Inject lateinit var controller: KioskController
     @Inject lateinit var events: EventSink
@@ -84,42 +78,6 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        // A single-app pin that returned us to HOME means the pinned app exited or crashed — re-pin
-        // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
-        // handled by the flow collector, not here.
-        val p = active ?: return
-        if (p.mode == "single") {
-            crashGuard.registerFault()
-            if (bailOnCrashLoop()) return
-            launchPinned(p)
-        }
-    }
-
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent?.getBooleanExtra(EXTRA_NETWORK_LOST, false) == true) {
-            networkLost = true
-            applyState(active)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Back from the settings app (or anywhere else): take the allowance away immediately, so
-        // the window it opens is only as long as the trip itself.
-        if (settingsAllowed) {
-            settingsAllowed = false
-            active?.let { p ->
-                controller.setAllowedPackages(
-                    (p.allowedPackages + listOfNotNull(p.pinPackage)).distinct(),
-                )
-            }
-        }
-    }
-
     private fun applyState(p: KioskApplyPayload?) {
         active = p
         if (p == null) {
@@ -129,12 +87,6 @@ class KioskLauncherActivity : ComponentActivity() {
         }
         if (bailOnCrashLoop()) return
         startLockTaskSafely()
-        // A device whose network is gone can't be told about another one from the server, so the
-        // way onto a new one has to be here, on the device itself.
-        if (networkLost && p.showWifi) {
-            setContentView(networkLostView(p))
-            return
-        }
         if (p.mode == "single" && p.pinPackage != null) {
             launchPinned(p)
         } else {
@@ -322,54 +274,6 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
-    /** Offered when connectivity is lost and the configuration asked for the Wi-Fi escape hatch. */
-    private fun networkLostView(p: KioskApplyPayload): View = frame(INK).apply {
-        val col = LinearLayout(this@KioskLauncherActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(28), 0, dp(28), 0)
-            layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
-        }
-        col.addView(centeredText("No network", 22f, ALERT, bold = true))
-        col.addView(centeredText("This device can't reach the server. Join a Wi-Fi network to continue.", 14f, MUTED))
-        col.addView(
-            Button(this@KioskLauncherActivity).apply {
-                text = "Open Wi-Fi settings"
-                setOnClickListener { openWifiSettings(p) }
-            },
-        )
-        col.addView(
-            Button(this@KioskLauncherActivity).apply {
-                text = "Back to app"
-                setOnClickListener {
-                    networkLost = false
-                    applyState(p)
-                }
-            },
-        )
-        addView(col)
-    }
-
-    /**
-     * Lets the settings app run inside lock task just long enough to join a network. The device
-     * never leaves kiosk: lock task still confines it to the allowlist, so the way out of settings
-     * is back here — and [onResume] takes the allowance away again.
-     */
-    private fun openWifiSettings(p: KioskApplyPayload) {
-        val allowed = (p.allowedPackages + listOfNotNull(p.pinPackage)).distinct()
-        controller.setAllowedPackages(allowed + SETTINGS_PACKAGES)
-        settingsAllowed = true
-        runCatching {
-            startActivity(
-                Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure {
-            controller.setAllowedPackages(allowed)
-            settingsAllowed = false
-        }
-    }
-
     private fun idleView(): View = frame(INK).apply {
         val col = LinearLayout(this@KioskLauncherActivity).apply {
             orientation = LinearLayout.VERTICAL
@@ -460,12 +364,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    companion object {
-        /** Extra set by the check-in service when the device drops off the network. */
-        const val EXTRA_NETWORK_LOST = "mdmesh.networkLost"
-
-        /** AOSP settings plus the package some OEM builds ship it under. */
-        val SETTINGS_PACKAGES = listOf("com.android.settings", "com.android.settings.intelligence")
+    private companion object {
 
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7

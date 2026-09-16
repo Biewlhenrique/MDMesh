@@ -16,7 +16,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
-import com.mdmesh.agent.KioskLauncherActivity
 import com.mdmesh.agent.R
 import com.mdmesh.core.power.PowerModeStore
 import com.mdmesh.core.store.DeviceIdentity
@@ -53,6 +52,8 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
     @Inject lateinit var kioskState: KioskStateStore
+    @Inject lateinit var kiosk: com.mdmesh.kiosk.KioskController
+    @Inject lateinit var dpmHandle: com.mdmesh.policy.wifi.DpmHandle
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -63,6 +64,8 @@ class CheckInService : LifecycleService() {
     // battery, so a device that just booted / self-updated is instantly commandable — a reboot
     // usually means an operator is acting on it. After the window, adaptive gating resumes.
     @Volatile private var graceUntil = 0L
+    /** True while the kiosk is relaxed so an operator can join another Wi-Fi network. */
+    @Volatile private var wifiRelaxed = false
 
     @Suppress("DEPRECATION")
     private val powerReceiver = object : BroadcastReceiver() {
@@ -70,7 +73,7 @@ class CheckInService : LifecycleService() {
             when (intent?.action) {
                 android.net.ConnectivityManager.CONNECTIVITY_ACTION -> {
                     runCatching { eventLog.record(EventType.CONNECTIVITY) }
-                    runCatching { surfaceWifiIfOffline() }
+                    runCatching { relaxForWifi() }
                 }
                 Intent.ACTION_BATTERY_LOW ->
                     runCatching { eventLog.record(EventType.LOW_BATTERY) }
@@ -80,23 +83,34 @@ class CheckInService : LifecycleService() {
     }
 
     /**
-     * Brings the kiosk launcher forward with its Wi-Fi escape hatch when the device drops off the
-     * network — but only when the configuration asked for it.
+     * Relaxes the kiosk just enough to join another Wi-Fi network, and tightens it again once the
+     * device is back on one. Only when the configuration's showWifi asked for it.
      *
-     * This is the only way onto a new network for a kiosked device whose provisioned one is gone:
-     * the server can push Wi-Fi credentials, but not to a device that can't be reached.
+     * The pinned app is left alone: it may well be working off the local network, and covering it
+     * with a "no network" screen would stop the machine it is driving. What opens instead is the
+     * status bar — enough to reach Wi-Fi from quick settings — plus the settings app on the
+     * lock-task allowlist, so the network picker it leads to is allowed to run. The device stays in
+     * lock task throughout, so settings is the only place the operator can get to.
+     *
+     * This is the only route onto a new network for a device whose provisioned one is gone: the
+     * server can push credentials, but not to a device it cannot reach.
      */
-    private fun surfaceWifiIfOffline() {
-        if (isOnline()) return
+    private fun relaxForWifi() {
         lifecycleScope.launch {
             val payload = kioskState.load() ?: return@launch
             if (!payload.showWifi) return@launch
+            val offline = !isOnline()
+            if (offline == wifiRelaxed) return@launch
+            wifiRelaxed = offline
+
+            val allowed = (payload.allowedPackages + listOfNotNull(payload.pinPackage)).distinct()
             runCatching {
-                startActivity(
-                    Intent(this@CheckInService, KioskLauncherActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        .putExtra(KioskLauncherActivity.EXTRA_NETWORK_LOST, true),
-                )
+                kiosk.setAllowedPackages(if (offline) allowed + SETTINGS_PACKAGES else allowed)
+                // Only re-lock what the kiosk wanted locked: a configuration that leaves the status
+                // bar available must not come back from this with it disabled.
+                if (offline || payload.features.systemInfo != true) {
+                    dpmHandle.dpm.setStatusBarDisabled(dpmHandle.admin, !offline)
+                }
             }
         }
     }
