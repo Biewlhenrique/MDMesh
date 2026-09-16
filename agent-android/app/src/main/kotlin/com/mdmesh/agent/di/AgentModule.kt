@@ -244,13 +244,19 @@ object AgentModule {
     private fun kioskHomeAlias(context: Context): ComponentName =
         ComponentName(context.packageName, "com.mdmesh.agent.KioskHomeAlias")
 
+    // Bound by its concrete type too: the home screen's "enter kiosk" button re-applies the last
+    // saved payload through the same handler, so the UI path can't drift from the command path.
     @Provides
-    @IntoSet
-    fun provideKioskEnterHandler(
+    @Singleton
+    fun provideKioskEnter(
         kiosk: KioskController,
         store: KioskStateStore,
         @ApplicationContext context: Context,
-    ): CommandHandler = KioskEnterHandler(kiosk, store, kioskHomeAlias(context), context)
+    ): KioskEnterHandler = KioskEnterHandler(kiosk, store, kioskHomeAlias(context), context)
+
+    @Provides
+    @IntoSet
+    fun provideKioskEnterHandler(handler: KioskEnterHandler): CommandHandler = handler
 
     @Provides
     @IntoSet

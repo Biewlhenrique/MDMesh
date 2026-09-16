@@ -38,6 +38,18 @@ class KioskEnterHandler(
                 .getOrElse { e -> return CommandResults.failed(command, "bad payload: ${e.message}") }
         } ?: KioskApplyPayload()
 
+        return when (val r = applyPayload(p)) {
+            KioskResult.Ok -> CommandResults.done(command)
+            KioskResult.Unsupported -> CommandResults.unsupported(command, "kiosk requires Device Owner")
+            is KioskResult.Failed -> CommandResults.failed(command, r.reason)
+        }
+    }
+
+    /**
+     * Applies [p] and, on success, persists it. Shared with the agent's own UI, which re-enters
+     * kiosk from the last saved payload without a round trip to the server.
+     */
+    suspend fun applyPayload(p: KioskApplyPayload): KioskResult {
         val features = lockTaskFeatures(
             KioskToggles(
                 home = p.features.home,
@@ -61,15 +73,11 @@ class KioskEnterHandler(
                 // activity start is blocked, the persistent-HOME claim still routes the next HOME
                 // press here.
                 foregroundLauncher()
-                CommandResults.done(command)
+                r
             }
-            KioskResult.Unsupported -> {
+            else -> {
                 setHomeAlias(enabled = false) // revert: never leave a non-DO device claiming HOME
-                CommandResults.unsupported(command, "kiosk requires Device Owner")
-            }
-            is KioskResult.Failed -> {
-                setHomeAlias(enabled = false)
-                CommandResults.failed(command, r.reason)
+                r
             }
         }
     }

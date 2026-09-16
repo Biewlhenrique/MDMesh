@@ -10,17 +10,23 @@ import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.mdmesh.agent.service.CheckInService
+import com.mdmesh.core.command.handlers.KioskEnterHandler
 import com.mdmesh.core.config.ServerConfigStore
 import com.mdmesh.core.store.DeviceIdStore
+import com.mdmesh.core.store.KioskStateStore
+import com.mdmesh.core.sync.CheckInWorker
 import com.mdmesh.core.sync.SyncStatus
+import com.mdmesh.kiosk.KioskResult
 import com.mdmesh.policy.wifi.DpmHandle
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -43,6 +49,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var dpmHandle: DpmHandle
     @Inject lateinit var serverConfig: ServerConfigStore
     @Inject lateinit var syncStatus: SyncStatus
+    @Inject lateinit var kioskStateStore: KioskStateStore
+    @Inject lateinit var kioskEnter: KioskEnterHandler
 
     private lateinit var deviceIdValue: TextView
     private lateinit var kioskValue: TextView
@@ -153,6 +161,11 @@ class MainActivity : ComponentActivity() {
         root.addView(text(serverConfig.baseUrl(), 13f, MUTED, mono = true))
         root.addView(spacer())
 
+        root.addView(label("ACTIONS"))
+        root.addView(button("Sync with server now") { syncNow() })
+        root.addView(button("Re-enter kiosk") { reEnterKiosk() })
+        root.addView(spacer())
+
         root.addView(
             text("Managed by MDMesh", 12f, MUTED).apply {
                 gravity = Gravity.CENTER
@@ -165,6 +178,47 @@ class MainActivity : ComponentActivity() {
             addView(root)
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
+    }
+
+    /** Kicks an immediate check-in; the periodic worker's own 15-minute cadence is untouched. */
+    private fun syncNow() {
+        CheckInWorker.scheduleNow(this)
+        toast("Sync requested")
+    }
+
+    /**
+     * Re-applies the last kiosk payload the server sent. Without a saved payload there is nothing
+     * to restore — entering with defaults would pin the device to the agent itself, which looks
+     * like a lock-up to whoever pressed the button.
+     */
+    private fun reEnterKiosk() {
+        lifecycleScope.launch {
+            val payload = kioskStateStore.load()
+            if (payload == null) {
+                toast("No kiosk configuration received from the server yet")
+                return@launch
+            }
+            when (val r = kioskEnter.applyPayload(payload)) {
+                KioskResult.Ok -> toast("Kiosk re-entered")
+                KioskResult.Unsupported -> toast("Kiosk requires Device Owner")
+                is KioskResult.Failed -> toast("Kiosk failed: ${r.reason}")
+            }
+            refresh()
+        }
+    }
+
+    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    private fun button(s: String, onClick: () -> Unit): Button = Button(this).apply {
+        text = s
+        isAllCaps = false
+        setTextColor(INK)
+        setBackgroundColor(SIGNAL)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        layoutParams = LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(10)
+        }
+        setOnClickListener { onClick() }
     }
 
     private fun label(s: String): TextView =
