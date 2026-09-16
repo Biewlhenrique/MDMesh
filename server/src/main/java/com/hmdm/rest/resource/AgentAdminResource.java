@@ -72,6 +72,7 @@ public class AgentAdminResource {
     private UnsecureDAO unsecureDAO;
     private AgentWakeHub wakeHub;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
+    private com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -84,12 +85,14 @@ public class AgentAdminResource {
                               AgentCommandDAO commandDAO,
                               UnsecureDAO unsecureDAO,
                               AgentWakeHub wakeHub,
-                              com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+                              com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
+                              com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier) {
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.unsecureDAO = unsecureDAO;
         this.wakeHub = wakeHub;
         this.configAppInstaller = configAppInstaller;
+        this.configKioskApplier = configKioskApplier;
     }
 
     // =================================================================================================================
@@ -150,8 +153,14 @@ public class AgentAdminResource {
             return Response.PERMISSION_DENIED();
         }
         int queued = configAppInstaller.enqueueConfigApps(device);
-        logger.info("Sync apps for device {}: {} app.install queued", deviceId, queued);
-        return Response.OK(java.util.Collections.singletonMap("queued", queued));
+        // Re-apply the configuration's kiosk too: this is the only way to push a changed kiosk
+        // setting (an edited admin password, say) to a device short of re-enrolling it.
+        boolean kiosk = configKioskApplier.enqueueKiosk(device);
+        logger.info("Sync apps for device {}: {} app.install queued, kiosk queued: {}", deviceId, queued, kiosk);
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("queued", queued);
+        body.put("kiosk", kiosk);
+        return Response.OK(body);
     }
 
     // =================================================================================================================

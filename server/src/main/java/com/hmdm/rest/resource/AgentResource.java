@@ -91,6 +91,7 @@ public class AgentResource {
     private AgentEnrollmentTokenDAO tokenDAO;
     private AgentCommandDAO commandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
+    private com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -102,11 +103,13 @@ public class AgentResource {
     public AgentResource(UnsecureDAO unsecureDAO,
                          AgentEnrollmentTokenDAO tokenDAO,
                          AgentCommandDAO commandDAO,
-                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
+                         com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier) {
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.configAppInstaller = configAppInstaller;
+        this.configKioskApplier = configKioskApplier;
     }
 
     // =================================================================================================================
@@ -177,9 +180,12 @@ public class AgentResource {
             // Best-effort: queue the configuration's action=install apps so a config acts as a
             // golden image. Failures are logged inside; enrollment itself must not fail on this.
             int queuedApps = configAppInstaller.enqueueConfigApps(device);
+            // ...and the kiosk it describes, so a kiosk configuration actually produces a kiosked
+            // device instead of one waiting for a hand-pushed kiosk.enter.
+            boolean queuedKiosk = configKioskApplier.enqueueKiosk(device);
 
-            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued)",
-                    deviceId, device.getConfigurationId(), queuedApps);
+            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued, kiosk queued: {})",
+                    deviceId, device.getConfigurationId(), queuedApps, queuedKiosk);
             return Response.OK(new AgentEnrollResponse(deviceId, configurationName, deviceSecret));
         } finally {
             // A server-side failure (settings rejection, SQL error) must not burn the single-use
