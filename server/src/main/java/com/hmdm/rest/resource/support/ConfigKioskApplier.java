@@ -115,6 +115,9 @@ public class ConfigKioskApplier {
         // hidden 7-tap gesture rather than "remote", so a technician standing at the machine is
         // never locked out of a device whose server is unreachable. Either way the password gates it.
         root.put("exitMode", Boolean.TRUE.equals(c.getKioskExit()) ? "visible" : "gesture");
+        // Without this the only way onto a new network is the full exit, and a device whose
+        // provisioned network is gone cannot be reached to be told about another one.
+        root.put("showWifi", Boolean.TRUE.equals(c.getShowWifi()));
         if (c.getPassword() != null && !c.getPassword().trim().isEmpty()) {
             root.put("password", c.getPassword());
         }

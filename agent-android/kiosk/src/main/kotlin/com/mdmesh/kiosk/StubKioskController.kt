@@ -20,5 +20,7 @@ class StubKioskController : KioskController {
 
     override fun isLocked(context: Context): Boolean = false
 
+    override fun setAllowedPackages(allowedPackages: List<String>): KioskResult = KioskResult.Unsupported
+
     override fun allowedPackages(): List<String> = emptyList()
 }

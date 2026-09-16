@@ -63,6 +63,16 @@ interface KioskController {
      */
     fun exit(): KioskResult
 
+    /**
+     * Replaces the lock-task allowlist, leaving the HOME claim and the feature mask alone — the
+     * device stays kiosked throughout.
+     *
+     * Exists so a locked device can be let into one more app briefly (the settings app, to join a
+     * Wi-Fi network when the provisioned one is gone) and taken straight back out, instead of the
+     * full [exit] that hands the whole device over. The agent's own package is always kept on.
+     */
+    fun setAllowedPackages(allowedPackages: List<String>): KioskResult
+
     /** True if the device is currently pinned in lock-task mode. */
     fun isLocked(context: Context): Boolean
 

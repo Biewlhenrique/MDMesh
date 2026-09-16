@@ -24,6 +24,8 @@ data class KioskApplyPayload(
     val exitMode: String = "gesture",
     val password: String? = null,
     val theme: KioskThemeDto = KioskThemeDto(),
+    /** Surface a Wi-Fi escape hatch in the launcher when the device loses connectivity. */
+    val showWifi: Boolean = false,
 )
 
 @Serializable

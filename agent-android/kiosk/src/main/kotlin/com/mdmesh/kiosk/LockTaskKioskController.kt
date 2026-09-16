@@ -73,6 +73,14 @@ class LockTaskKioskController(
         return am.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_LOCKED
     }
 
+    override fun setAllowedPackages(allowedPackages: List<String>): KioskResult {
+        val ownPackage = admin.packageName
+        if (!dpm.isDeviceOwnerApp(ownPackage)) return KioskResult.Unsupported
+        return runGuarded {
+            dpm.setLockTaskPackages(admin, (allowedPackages + ownPackage).distinct().toTypedArray())
+        }
+    }
+
     override fun allowedPackages(): List<String> {
         if (!dpm.isDeviceOwnerApp(admin.packageName)) return emptyList()
         // getLockTaskPackages() was added in API 26 (O); on 24/25 the method doesn't exist.

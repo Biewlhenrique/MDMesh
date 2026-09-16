@@ -16,9 +16,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import com.mdmesh.agent.KioskLauncherActivity
 import com.mdmesh.agent.R
 import com.mdmesh.core.power.PowerModeStore
 import com.mdmesh.core.store.DeviceIdentity
+import com.mdmesh.core.store.KioskStateStore
 import com.mdmesh.core.sync.CheckInCoordinator
 import com.mdmesh.core.telemetry.EventLog
 import com.mdmesh.core.transport.TransportManager
@@ -50,6 +52,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var identity: DeviceIdentity
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
+    @Inject lateinit var kioskState: KioskStateStore
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -65,13 +68,43 @@ class CheckInService : LifecycleService() {
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                android.net.ConnectivityManager.CONNECTIVITY_ACTION ->
+                android.net.ConnectivityManager.CONNECTIVITY_ACTION -> {
                     runCatching { eventLog.record(EventType.CONNECTIVITY) }
+                    runCatching { surfaceWifiIfOffline() }
+                }
                 Intent.ACTION_BATTERY_LOW ->
                     runCatching { eventLog.record(EventType.LOW_BATTERY) }
             }
             reevaluateSocket()
         }
+    }
+
+    /**
+     * Brings the kiosk launcher forward with its Wi-Fi escape hatch when the device drops off the
+     * network — but only when the configuration asked for it.
+     *
+     * This is the only way onto a new network for a kiosked device whose provisioned one is gone:
+     * the server can push Wi-Fi credentials, but not to a device that can't be reached.
+     */
+    private fun surfaceWifiIfOffline() {
+        if (isOnline()) return
+        lifecycleScope.launch {
+            val payload = kioskState.load() ?: return@launch
+            if (!payload.showWifi) return@launch
+            runCatching {
+                startActivity(
+                    Intent(this@CheckInService, KioskLauncherActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(KioskLauncherActivity.EXTRA_NETWORK_LOST, true),
+                )
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return true
+        return cm.activeNetworkInfo?.isConnected == true
     }
 
     @Suppress("DEPRECATION")
