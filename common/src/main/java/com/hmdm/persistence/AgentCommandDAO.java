@@ -87,6 +87,15 @@ public class AgentCommandDAO {
         mapper.expireStale(deviceNumber, now - pendingTtlMillis, now - deliveredTtlMillis, now);
     }
 
+    /**
+     * Closes commands orphaned by the agent replacing itself. Call on check-in BEFORE upserting the
+     * device state — it compares the reported {@code agentVersion} against the stored one.
+     */
+    public void expireOrphanedByAgentRestart(String deviceNumber, String agentVersion) {
+        mapper.expireOrphanedByAgentRestart(deviceNumber, agentVersion, System.currentTimeMillis(),
+                "agent restarted on a new version before acknowledging");
+    }
+
     /** Command lifecycle history for a device, newest first, created at/after {@code since}. */
     public List<AgentCommand> listHistory(String deviceNumber, long since, int limit) {
         return mapper.listHistory(deviceNumber, since, limit);

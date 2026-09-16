@@ -243,6 +243,12 @@ public class AgentResource {
         // Persist the latest device-state snapshot (powers the admin console).
         if (request.getState() != null) {
             AgentDeviceState s = request.getState();
+            // A changed agentVersion means the process was replaced mid-flight — it installed
+            // itself — so anything still DELIVERED will never be acknowledged. Close those out
+            // here, while the stored version is still the old one.
+            if (s.getAgentVersion() != null && !s.getAgentVersion().trim().isEmpty()) {
+                commandDAO.expireOrphanedByAgentRestart(deviceNumber, s.getAgentVersion().trim());
+            }
             DeviceState row = new DeviceState();
             row.setDeviceNumber(deviceNumber);
             row.setBattery(s.getBattery());

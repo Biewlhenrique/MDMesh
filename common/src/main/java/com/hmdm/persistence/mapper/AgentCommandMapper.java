@@ -82,6 +82,23 @@ public interface AgentCommandMapper {
     void expireStale(@Param("deviceNumber") String deviceNumber, @Param("pendingCutoff") long pendingCutoff,
                      @Param("deliveredCutoff") long deliveredCutoff, @Param("now") long now);
 
+    /**
+     * Closes the commands a restarting agent can never acknowledge. Called on check-in BEFORE the
+     * state upsert, so the stored agentVersion is still the previous one: when it differs from the
+     * version now being reported, the agent process was replaced — it installed itself — taking its
+     * in-flight command state with it. Left alone those sit DELIVERED for the six-hour leash in
+     * {@link #expireStale}, and an outstanding install makes the device look PENDING to the next
+     * rollout, which then skips it without saying so.
+     */
+    @Update({"UPDATE agentCommand SET status = 'expired', completedAt = #{now}, detail = #{detail} " +
+            "WHERE deviceNumber = #{deviceNumber} AND status = 'delivered' " +
+            "AND EXISTS (SELECT 1 FROM device_state ds WHERE ds.deviceNumber = #{deviceNumber} " +
+            "AND ds.agentVersion IS DISTINCT FROM #{agentVersion})"})
+    void expireOrphanedByAgentRestart(@Param("deviceNumber") String deviceNumber,
+                                      @Param("agentVersion") String agentVersion,
+                                      @Param("now") long now,
+                                      @Param("detail") String detail);
+
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND createdAt >= #{since} " +
             "ORDER BY id DESC LIMIT #{limit}"})
     List<AgentCommand> listHistory(@Param("deviceNumber") String deviceNumber,
