@@ -62,6 +62,9 @@ class KioskLauncherActivity : ComponentActivity() {
     /** Last applied non-null kiosk state, so [onResume] can recover a bounced single-app pin. */
     private var active: KioskApplyPayload? = null
 
+    /** When the pinned app was last launched, to tell a crash from an ordinary return to HOME. */
+    private var pinnedAt = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // A kiosk device boots straight into HOME (this); keep the command channel alive even if
@@ -76,6 +79,24 @@ class KioskLauncherActivity : ComponentActivity() {
                 store.flow().distinctUntilChanged().collect(::applyState)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // A single-app pin that returned us to HOME means the pinned app is gone from the front —
+        // re-pin it. Enter/exit transitions are handled by the flow collector, not here.
+        val p = active ?: return
+        if (p.mode != "single") return
+        // Only a bounce that happens right after the launch is evidence of a crash. Coming back
+        // here minutes later is the ordinary way a kiosk device behaves: the screen was locked and
+        // unlocked, HOME was pressed, the operator went to Wi-Fi settings. Counting those as
+        // crashes tripped the guard after four lock/unlock cycles in a minute and dropped kiosk
+        // altogether, stranding the device on the recovery screen with no way back to the app.
+        if (System.currentTimeMillis() - pinnedAt < CRASH_BOUNCE_MS) {
+            crashGuard.registerFault()
+            if (bailOnCrashLoop()) return
+        }
+        launchPinned(p)
     }
 
     private fun applyState(p: KioskApplyPayload?) {
@@ -96,6 +117,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     /** Launch + show the pinned app (single mode), with a themed splash behind it. */
     private fun launchPinned(p: KioskApplyPayload) {
+        pinnedAt = System.currentTimeMillis()
         val intent = p.pinPackage?.let { packageManager.getLaunchIntentForPackage(it) }
         if (intent == null) {
             setContentView(launcherGrid(p)) // unknown package → fall back to the grid
@@ -365,6 +387,9 @@ class KioskLauncherActivity : ComponentActivity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private companion object {
+        /** A bounce back to HOME sooner than this after pinning is treated as the app crashing. */
+        const val CRASH_BOUNCE_MS = 5_000L
+
 
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7
