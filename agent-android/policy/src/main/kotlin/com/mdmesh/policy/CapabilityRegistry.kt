@@ -6,6 +6,8 @@ import com.mdmesh.policy.camera.CameraPolicy
 import com.mdmesh.policy.camera.CameraPolicyFactory
 import com.mdmesh.policy.screenshots.ScreenshotsPolicy
 import com.mdmesh.policy.screenshots.ScreenshotsPolicyFactory
+import com.mdmesh.policy.stayawake.StayAwakePolicy
+import com.mdmesh.policy.stayawake.StayAwakePolicyFactory
 import com.mdmesh.policy.usb.UsbStoragePolicy
 import com.mdmesh.policy.usb.UsbStoragePolicyFactory
 import com.mdmesh.policy.wifi.DpmHandle
@@ -42,6 +44,7 @@ class CapabilityRegistry(
         ScreenshotsPolicyFactory.create(handle)?.let { put(ScreenshotsPolicy.CAPABILITY_KEY, it) }
         BluetoothPolicyFactory.create(handle)?.let { put(BluetoothPolicy.CAPABILITY_KEY, it) }
         UsbStoragePolicyFactory.create(handle)?.let { put(UsbStoragePolicy.CAPABILITY_KEY, it) }
+        StayAwakePolicyFactory.create(handle)?.let { put(StayAwakePolicy.CAPABILITY_KEY, it) }
         // Each factory probe returns null on an unsupported device, so a key only
         // appears here when a usable strategy exists.
         // Absence == "not advertised" == "never commanded".

@@ -61,6 +61,26 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
     },
   },
   {
+    key: 'stay-awake-on',
+    label: 'Keep screen on while charging',
+    description: 'Hold the display awake whenever the device is plugged in.',
+    request: {
+      type: 'policy.apply',
+      requiresCapability: 'policy.stayAwake',
+      payload: JSON.stringify({ policy: 'stayAwake', value: true }),
+    },
+  },
+  {
+    key: 'stay-awake-off',
+    label: 'Normal screen timeout',
+    description: 'Let the screen turn itself off again, charging or not.',
+    request: {
+      type: 'policy.apply',
+      requiresCapability: 'policy.stayAwake',
+      payload: JSON.stringify({ policy: 'stayAwake', value: false }),
+    },
+  },
+  {
     key: 'reboot',
     label: 'Reboot device',
     description: 'Restart the device now.',
