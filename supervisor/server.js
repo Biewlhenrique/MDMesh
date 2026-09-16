@@ -163,7 +163,15 @@ async function poll() {
     lastApk = manifest ? apkAsset(rel, manifest) : null;
     setStatus({ current: currentVersion, manifest, verified: !!manifest, checkedAt: Date.now(),
       error: manifest ? null : 'manifest missing or signature invalid' });
-    if (lastApk) void ensureApk(); // warm the mirror cache (download+verify) so a rollout is instant
+    // Warm the mirror cache (download+verify) so a rollout is instant. It finishes after this poll
+    // has already published `available: apkReady()` as false, and nothing else recomputes the
+    // status — so flip it here, or the console hides the rollout panel for a release whose APK is
+    // sitting on disk until the next poll, POLL_INTERVAL_HOURS away.
+    if (lastApk) {
+      void ensureApk().then((ok) => {
+        if (ok && state.apk && !state.apk.available) state.apk = { ...state.apk, available: true };
+      });
+    }
   } catch (e) {
     state = { ...state, checkedAt: Date.now(), error: String((e && e.message) || e) };
   }
