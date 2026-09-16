@@ -264,6 +264,9 @@ class CheckInService : LifecycleService() {
     }
 
     companion object {
+        /** AOSP settings plus the package some OEM builds ship the network picker under. */
+        private val SETTINGS_PACKAGES = listOf("com.android.settings", "com.android.settings.intelligence")
+
         private const val TAG = "CheckInService"
         private const val CHANNEL_ID = "mdm_checkin"
         private const val NOTIFICATION_ID = 1001
