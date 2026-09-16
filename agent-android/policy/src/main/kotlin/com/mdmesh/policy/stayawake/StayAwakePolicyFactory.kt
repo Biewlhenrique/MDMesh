@@ -1,5 +1,6 @@
 package com.mdmesh.policy.stayawake
 
+import android.content.Context
 import com.mdmesh.policy.wifi.DpmHandle
 
 /**
@@ -9,6 +10,6 @@ import com.mdmesh.policy.wifi.DpmHandle
  */
 object StayAwakePolicyFactory {
 
-    fun create(handle: DpmHandle): StayAwakePolicy? =
-        listOf(StayAwakeGlobalSettingPolicy(handle)).firstOrNull { it.isSupported() }
+    fun create(handle: DpmHandle, context: Context): StayAwakePolicy? =
+        listOf(StayAwakeGlobalSettingPolicy(handle, context)).firstOrNull { it.isSupported() }
 }

@@ -32,6 +32,7 @@ import com.mdmesh.policy.wifi.WifiPolicyFactory
  */
 class CapabilityRegistry(
     private val handle: DpmHandle,
+    private val context: android.content.Context,
 ) {
 
     /**
@@ -46,7 +47,7 @@ class CapabilityRegistry(
         ScreenshotsPolicyFactory.create(handle)?.let { put(ScreenshotsPolicy.CAPABILITY_KEY, it) }
         BluetoothPolicyFactory.create(handle)?.let { put(BluetoothPolicy.CAPABILITY_KEY, it) }
         UsbStoragePolicyFactory.create(handle)?.let { put(UsbStoragePolicy.CAPABILITY_KEY, it) }
-        StayAwakePolicyFactory.create(handle)?.let { put(StayAwakePolicy.CAPABILITY_KEY, it) }
+        StayAwakePolicyFactory.create(handle, context)?.let { put(StayAwakePolicy.CAPABILITY_KEY, it) }
         StatusBarPolicyFactory.create(handle)?.let { put(StatusBarPolicy.CAPABILITY_KEY, it) }
         // Each factory probe returns null on an unsupported device, so a key only
         // appears here when a usable strategy exists.

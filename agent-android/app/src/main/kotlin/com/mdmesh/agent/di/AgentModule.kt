@@ -92,8 +92,10 @@ object AgentModule {
 
     @Provides
     @Singleton
-    fun provideCapabilityRegistry(handle: DpmHandle): CapabilityRegistry =
-        CapabilityRegistry(handle)
+    fun provideCapabilityRegistry(
+        handle: DpmHandle,
+        @ApplicationContext context: Context,
+    ): CapabilityRegistry = CapabilityRegistry(handle, context)
 
     @Provides
     @Singleton
