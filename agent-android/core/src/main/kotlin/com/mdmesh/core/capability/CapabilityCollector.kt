@@ -21,32 +21,40 @@ import com.mdmesh.remote.RemoteControlTierDetector
 class CapabilityCollector(
     private val agentVersion: String,
     private val agentPackage: String,
-    private val isDeviceOwner: Boolean,
+    private val isDeviceOwner: () -> Boolean,
     private val capabilityRegistry: CapabilityRegistry,
     private val remoteTierDetector: RemoteControlTierDetector,
     private val oemAdapter: OemAdapter,
-    private val appManagementKeys: List<String> = emptyList(),
+    private val deviceOwnerAppManagementKeys: List<String> = emptyList(),
     private val deviceActionKeys: List<String> = emptyList(),
 ) : CapabilitySource {
 
     override fun matrix(deviceId: String): CapabilityMatrix = collect(deviceId)
 
-    fun collect(deviceId: String): CapabilityMatrix = CapabilityMatrix(
-        agent = AgentInfo(version = agentVersion, packageName = agentPackage),
-        device = DeviceInfo(
-            id = deviceId,
-            androidSdkInt = Build.VERSION.SDK_INT,
-            androidRelease = Build.VERSION.RELEASE,
-            manufacturer = Build.MANUFACTURER,
-            model = Build.MODEL,
-            isDeviceOwner = isDeviceOwner,
-        ),
-        capabilities = Capabilities(
-            policy = capabilityRegistry.supportedPolicyKeys(),
-            appManagement = appManagementKeys,
-            device = deviceActionKeys,
-            remoteControl = remoteTierDetector.capability(),
-            oem = oemAdapter.capability(),
-        ),
-    )
+    fun collect(deviceId: String): CapabilityMatrix {
+        // Probed on every collect, never captured once: during QR provisioning the first check-in
+        // runs from AdminPolicyComplianceActivity while isDeviceOwnerApp() still reports false, so
+        // a value read at construction time stays false for the whole process lifetime. The agent
+        // then enrolls without app.silentInstall and the server gates every app.install it queues
+        // — silently, until the process happens to restart.
+        val deviceOwner = isDeviceOwner()
+        return CapabilityMatrix(
+            agent = AgentInfo(version = agentVersion, packageName = agentPackage),
+            device = DeviceInfo(
+                id = deviceId,
+                androidSdkInt = Build.VERSION.SDK_INT,
+                androidRelease = Build.VERSION.RELEASE,
+                manufacturer = Build.MANUFACTURER,
+                model = Build.MODEL,
+                isDeviceOwner = deviceOwner,
+            ),
+            capabilities = Capabilities(
+                policy = capabilityRegistry.supportedPolicyKeys(),
+                appManagement = if (deviceOwner) deviceOwnerAppManagementKeys else emptyList(),
+                device = deviceActionKeys,
+                remoteControl = remoteTierDetector.capability(),
+                oem = oemAdapter.capability(),
+            ),
+        )
+    }
 }
