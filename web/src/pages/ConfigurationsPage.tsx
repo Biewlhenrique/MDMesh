@@ -10,7 +10,12 @@ import {
   type Configuration,
   type ConfigApp,
 } from '../api/configurations';
-import { listApplications, type Application } from '../api/applications';
+import { listApplications, getVersions, type Application } from '../api/applications';
+
+// mainAppId/contentAppId store an applicationversions.id, not an applications.id — augment each
+// Application with the id of its current version so the 'app' selector (and appName lookup) can
+// use the right key. See configurations_mainappid_fkey (references applicationversions).
+type AppWithVersion = Application & { versionId?: number };
 import {
   FOCUSED_FIELDS,
   ADVANCED_FIELDS,
@@ -58,7 +63,7 @@ function cloneForNew(base: Configuration | null): Configuration {
 export function ConfigurationsPage() {
   const toast = useToast();
   const [configs, setConfigs] = useState<Configuration[] | null>(null);
-  const [apps, setApps] = useState<Application[]>([]);
+  const [apps, setApps] = useState<AppWithVersion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Configuration | null>(null);
   const [readOnly, setReadOnly] = useState(false);
@@ -75,7 +80,21 @@ export function ConfigurationsPage() {
 
   useEffect(() => {
     void load();
-    listApplications().then((a) => setApps(a.filter((x) => (x.type ?? 'app') !== 'web'))).catch(() => undefined);
+    listApplications().then(async (a) => {
+      const filtered = a.filter((x) => (x.type ?? 'app') !== 'web');
+      const withVersions = await Promise.all(
+        filtered.map(async (app): Promise<AppWithVersion> => {
+          try {
+            const versions = await getVersions(app.id);
+            const match = versions.find((v) => v.versionCode === app.latestVersion) ?? versions[versions.length - 1];
+            return { ...app, versionId: match?.id };
+          } catch {
+            return app;
+          }
+        }),
+      );
+      setApps(withVersions);
+    }).catch(() => undefined);
   }, []);
 
   if (editing) {
@@ -172,9 +191,9 @@ export function ConfigurationsPage() {
   }
 }
 
-function appName(apps: Application[], id?: number): string {
+function appName(apps: AppWithVersion[], id?: number): string {
   if (id == null) return '—';
-  return apps.find((a) => a.id === id)?.name ?? `#${id}`;
+  return apps.find((a) => a.versionId === id)?.name ?? `#${id}`;
 }
 
 function ConfigCard({
@@ -293,7 +312,7 @@ function ConfigEditor({
   onDuplicate,
 }: {
   initial: Configuration;
-  apps: Application[];
+  apps: AppWithVersion[];
   readOnly: boolean;
   onCancel: () => void;
   onSaved: () => void;
@@ -481,7 +500,7 @@ function Field({
 }: {
   def: FieldDef;
   value: unknown;
-  apps: Application[];
+  apps: AppWithVersion[];
   disabled?: boolean;
   onChange: (v: unknown) => void;
 }) {
@@ -498,7 +517,7 @@ function Field({
   );
 }
 
-function FieldControl({ def, value, apps, disabled, onChange }: { def: FieldDef; value: unknown; apps: Application[]; disabled?: boolean; onChange: (v: unknown) => void }) {
+function FieldControl({ def, value, apps, disabled, onChange }: { def: FieldDef; value: unknown; apps: AppWithVersion[]; disabled?: boolean; onChange: (v: unknown) => void }) {
   switch (def.type) {
     case 'switch':
       return (
@@ -533,8 +552,8 @@ function FieldControl({ def, value, apps, disabled, onChange }: { def: FieldDef;
       return (
         <select className="sel" value={value == null ? '' : String(value)} disabled={disabled} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}>
           <option value="">— none —</option>
-          {apps.map((a) => (
-            <option key={a.id} value={a.id}>{a.name} ({a.pkg})</option>
+          {apps.filter((a) => a.versionId != null).map((a) => (
+            <option key={a.versionId} value={a.versionId}>{a.name} ({a.pkg})</option>
           ))}
         </select>
       );
