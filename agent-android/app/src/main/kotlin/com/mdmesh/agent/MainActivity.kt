@@ -11,6 +11,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -23,8 +24,10 @@ import com.mdmesh.agent.service.CheckInService
 import com.mdmesh.core.command.handlers.KioskEnterHandler
 import com.mdmesh.core.config.ServerConfigStore
 import com.mdmesh.core.store.DeviceIdStore
+import com.mdmesh.core.store.KioskAutoReentryStore
 import com.mdmesh.core.store.KioskStateStore
 import com.mdmesh.core.sync.CheckInWorker
+import com.mdmesh.core.sync.KioskReentryWorker
 import com.mdmesh.core.sync.SyncStatus
 import com.mdmesh.kiosk.KioskResult
 import com.mdmesh.policy.wifi.DpmHandle
@@ -51,6 +54,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncStatus: SyncStatus
     @Inject lateinit var kioskStateStore: KioskStateStore
     @Inject lateinit var kioskEnter: KioskEnterHandler
+    @Inject lateinit var kioskAutoReentry: KioskAutoReentryStore
 
     private lateinit var deviceIdValue: TextView
     private lateinit var kioskValue: TextView
@@ -164,6 +168,16 @@ class MainActivity : ComponentActivity() {
         root.addView(label("ACTIONS"))
         root.addView(button("Sync with server now") { syncNow() })
         root.addView(button("Re-enter kiosk") { reEnterKiosk() })
+        root.addView(
+            checkbox(
+                "Return to kiosk automatically",
+                "After ${KioskReentryWorker.DELAY_MINUTES} min out of kiosk.",
+                kioskAutoReentry.enabled(),
+            ) { on ->
+                kioskAutoReentry.setEnabled(on)
+                if (!on) KioskReentryWorker.cancel(this)
+            },
+        )
         root.addView(spacer())
 
         root.addView(
@@ -210,6 +224,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    private fun checkbox(
+        title: String,
+        help: String,
+        checked: Boolean,
+        onChange: (Boolean) -> Unit,
+    ): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        addView(
+            CheckBox(this@MainActivity).apply {
+                text = title
+                isChecked = checked
+                setTextColor(TEXT)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setOnCheckedChangeListener { _, isOn -> onChange(isOn) }
+            },
+        )
+        addView(text(help, 12f, MUTED).apply { setPadding(dp(32), 0, 0, 0) })
+    }
 
     private fun button(s: String, onClick: () -> Unit): Button = Button(this).apply {
         text = s

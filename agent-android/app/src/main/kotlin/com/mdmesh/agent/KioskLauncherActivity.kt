@@ -26,6 +26,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.mdmesh.agent.service.CheckInService
 import com.mdmesh.core.store.KioskStateStore
+import com.mdmesh.core.sync.KioskReentryWorker
 import com.mdmesh.core.telemetry.EventSink
 import com.mdmesh.kiosk.CrashLoopGuard
 import com.mdmesh.kiosk.KioskController
@@ -169,6 +170,9 @@ class KioskLauncherActivity : ComponentActivity() {
         runCatching { if (isFinishing.not()) stopLockTask() }
         controller.exit()
         events.record("kioskExit", "exited on-device")
+        // Arm the return trip. The worker re-reads the switch when it fires, so turning it off
+        // mid-job still calls this off.
+        KioskReentryWorker.schedule(this)
         // Drop our HOME claim and hand off to the OEM launcher so the device returns to normal
         // (mirrors KioskExitHandler for the remote-exit path).
         runCatching {
