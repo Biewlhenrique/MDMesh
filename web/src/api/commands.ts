@@ -81,6 +81,36 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
     },
   },
   {
+    key: 'statusbar-lock',
+    label: 'Lock status bar',
+    description: 'Block the pull-down status bar, notifications and quick settings.',
+    request: {
+      type: 'policy.apply',
+      requiresCapability: 'policy.statusBar',
+      payload: JSON.stringify({ policy: 'statusBar', value: false }),
+    },
+  },
+  {
+    key: 'statusbar-unlock',
+    label: 'Unlock status bar',
+    description: 'Give the pull-down status bar back.',
+    request: {
+      type: 'policy.apply',
+      requiresCapability: 'policy.statusBar',
+      payload: JSON.stringify({ policy: 'statusBar', value: true }),
+    },
+  },
+  {
+    key: 'brightness-auto',
+    label: 'Automatic brightness',
+    description: 'Hand the screen brightness back to the light sensor.',
+    request: {
+      type: 'device.brightness',
+      requiresCapability: 'device.brightness',
+      payload: JSON.stringify({ auto: true }),
+    },
+  },
+  {
     key: 'reboot',
     label: 'Reboot device',
     description: 'Restart the device now.',

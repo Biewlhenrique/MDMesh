@@ -32,9 +32,15 @@ object DeviceAction {
     const val LOCATION_PASSIVE = "passive"
     const val LOCATION_ACTIVE = "active"
 
+    /**
+     * Screen brightness. Payload: `{ "auto": true }` to follow the light sensor, or
+     * `{ "auto": false, "value": 0..255 }` to pin a level.
+     */
+    const val BRIGHTNESS = "device.brightness"
+
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "brightness",
     )
 }

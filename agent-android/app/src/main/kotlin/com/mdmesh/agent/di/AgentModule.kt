@@ -23,6 +23,7 @@ import com.mdmesh.core.command.handlers.DeviceLockscreenMessageHandler
 import com.mdmesh.core.command.handlers.DevicePasscodeResetHandler
 import com.mdmesh.core.command.handlers.DeviceRebootHandler
 import com.mdmesh.core.command.handlers.DeviceRingHandler
+import com.mdmesh.core.command.handlers.DeviceBrightnessHandler
 import com.mdmesh.core.command.handlers.DeviceLocationModeHandler
 import com.mdmesh.core.command.handlers.DevicePowerModeHandler
 import com.mdmesh.core.command.handlers.DeviceRingStopHandler
@@ -317,4 +318,9 @@ object AgentModule {
     @IntoSet
     fun provideLocationModeHandler(store: LocationModeStore): CommandHandler =
         DeviceLocationModeHandler(store)
+
+    @Provides
+    @IntoSet
+    fun provideBrightnessHandler(handle: DpmHandle): CommandHandler =
+        DeviceBrightnessHandler(handle)
 }

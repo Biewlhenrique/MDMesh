@@ -92,6 +92,7 @@ public class AgentResource {
     private AgentCommandDAO commandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier;
+    private com.hmdm.rest.resource.support.ConfigSettingsApplier configSettingsApplier;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -104,12 +105,14 @@ public class AgentResource {
                          AgentEnrollmentTokenDAO tokenDAO,
                          AgentCommandDAO commandDAO,
                          com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
-                         com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier) {
+                         com.hmdm.rest.resource.support.ConfigKioskApplier configKioskApplier,
+                         com.hmdm.rest.resource.support.ConfigSettingsApplier configSettingsApplier) {
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.configAppInstaller = configAppInstaller;
         this.configKioskApplier = configKioskApplier;
+        this.configSettingsApplier = configSettingsApplier;
     }
 
     // =================================================================================================================
@@ -183,9 +186,12 @@ public class AgentResource {
             // ...and the kiosk it describes, so a kiosk configuration actually produces a kiosked
             // device instead of one waiting for a hand-pushed kiosk.enter.
             boolean queuedKiosk = configKioskApplier.enqueueKiosk(device);
+            // ...and the device settings it describes (brightness, radios, status bar, ...), which
+            // the agent would otherwise never learn about.
+            int queuedSettings = configSettingsApplier.enqueueSettings(device);
 
-            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued, kiosk queued: {})",
-                    deviceId, device.getConfigurationId(), queuedApps, queuedKiosk);
+            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued, kiosk queued: {}, {} settings queued)",
+                    deviceId, device.getConfigurationId(), queuedApps, queuedKiosk, queuedSettings);
             return Response.OK(new AgentEnrollResponse(deviceId, configurationName, deviceSecret));
         } finally {
             // A server-side failure (settings rejection, SQL error) must not burn the single-use
