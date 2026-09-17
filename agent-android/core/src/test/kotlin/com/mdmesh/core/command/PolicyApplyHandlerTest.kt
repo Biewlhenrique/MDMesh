@@ -41,7 +41,7 @@ class PolicyApplyHandlerTest {
     @Test
     fun `applies a known toggle policy and reports done`() = runTest {
         val wifi = FakeToggle("wifi", PolicyOutcome.Applied)
-        val result = PolicyApplyHandler(mapOf("wifi" to wifi)).handle(command(payload("wifi", false)))
+        val result = PolicyApplyHandler { mapOf("wifi" to wifi) }.handle(command(payload("wifi", false)))
 
         assertEquals(CommandStatus.DONE, result.status)
         assertEquals(false, wifi.lastEnabled)
@@ -49,20 +49,40 @@ class PolicyApplyHandlerTest {
 
     @Test
     fun `reports unsupported for a policy with no registered strategy`() = runTest {
-        val result = PolicyApplyHandler(emptyMap()).handle(command(payload("camera", true)))
+        val result = PolicyApplyHandler { emptyMap() }.handle(command(payload("camera", true)))
         assertEquals(CommandStatus.UNSUPPORTED, result.status)
     }
 
     @Test
     fun `reports failed when the payload is missing`() = runTest {
-        val result = PolicyApplyHandler(emptyMap()).handle(command(payload = null))
+        val result = PolicyApplyHandler { emptyMap() }.handle(command(payload = null))
         assertEquals(CommandStatus.FAILED, result.status)
+    }
+
+    @Test
+    fun `resolves the strategies per command, not once`() = runTest {
+        // The device-owner probe behind every strategy only starts passing partway through
+        // provisioning: a handler that captured the map at construction would answer "unsupported"
+        // for the rest of the process, contradicting the capability matrix it published.
+        var registered = emptyMap<String, TogglePolicy>()
+        val handler = PolicyApplyHandler { registered }
+
+        assertEquals(
+            CommandStatus.UNSUPPORTED,
+            handler.handle(command(payload("wifi", true))).status,
+        )
+
+        val wifi = FakeToggle("wifi", PolicyOutcome.Applied)
+        registered = mapOf("wifi" to wifi)
+
+        assertEquals(CommandStatus.DONE, handler.handle(command(payload("wifi", true))).status)
+        assertEquals(true, wifi.lastEnabled)
     }
 
     @Test
     fun `surfaces a strategy failure as failed`() = runTest {
         val wifi = FakeToggle("wifi", PolicyOutcome.Failed("dpm blew up"))
-        val result = PolicyApplyHandler(mapOf("wifi" to wifi)).handle(command(payload("wifi", true)))
+        val result = PolicyApplyHandler { mapOf("wifi" to wifi) }.handle(command(payload("wifi", true)))
         assertEquals(CommandStatus.FAILED, result.status)
     }
 }
