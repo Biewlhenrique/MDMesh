@@ -47,9 +47,10 @@ import javax.inject.Inject
  * Exit affordance is driven by [KioskApplyPayload.exitMode] (`gesture` 7-tap corner / `visible`
  * button / `remote` none) and gated by [KioskApplyPayload.password].
  *
- * A [CrashLoopGuard] protects against a crashing pinned app bouncing back to HOME in a tight
- * loop: each single-app launch registers a fault, and once the loop trips the launcher drops
- * kiosk instead of re-pinning, so a misconfigured deployment cannot brick the device.
+ * A [CrashLoopGuard] protects against a crashing pinned app bouncing back to HOME in a tight loop:
+ * a bounce right after launch registers a fault, and once the loop trips the launcher stops
+ * re-pinning and shows a recovery screen. It stays in kiosk while doing so — leaving would be a way
+ * out of a locked device that never asks for the password.
  */
 @AndroidEntryPoint
 class KioskLauncherActivity : ComponentActivity() {
@@ -81,8 +82,25 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    /** @return true if the intent asked for the exit prompt (and it was shown). */
+    private fun consumeExitRequest(): Boolean {
+        if (intent?.getBooleanExtra(EXTRA_PROMPT_EXIT, false) != true) return false
+        intent.removeExtra(EXTRA_PROMPT_EXIT) // one prompt per tap, not once per resume
+        val p = active ?: return false
+        promptExit(p)
+        return true
+    }
+
     override fun onResume() {
         super.onResume()
+        // The notification's exit action lands here: show the prompt over the pinned app instead of
+        // re-pinning it, or the dialog would be buried the moment it appeared.
+        if (consumeExitRequest()) return
         // A single-app pin that returned us to HOME means the pinned app is gone from the front —
         // re-pin it. Enter/exit transitions are handled by the flow collector, not here.
         val p = active ?: return
@@ -127,8 +145,9 @@ class KioskLauncherActivity : ComponentActivity() {
         runCatching { startActivity(intent) }
     }
 
-    /** @return true if a crash loop tripped (kiosk dropped + recovery shown), so the caller stops. */
     /**
+     * @return true if the loop tripped and the recovery screen is up, so the caller stops.
+     *
      * Stops re-launching a pinned app that keeps disappearing, and says so on screen.
      *
      * It deliberately does NOT leave kiosk. Dropping lock task here was an unlocked way out of a
@@ -405,6 +424,11 @@ class KioskLauncherActivity : ComponentActivity() {
         value?.let { runCatching { Color.parseColor(it) }.getOrNull() } ?: fallback
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    companion object {
+        /** Set by the notification action: open the password prompt straight away. */
+        const val EXTRA_PROMPT_EXIT = "mdmesh.promptExit"
+    }
 
     private companion object {
         /** A bounce back to HOME sooner than this after pinning is treated as the app crashing. */

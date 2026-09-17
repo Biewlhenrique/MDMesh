@@ -16,6 +16,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import android.app.PendingIntent
+import com.mdmesh.agent.KioskLauncherActivity
 import com.mdmesh.agent.R
 import com.mdmesh.core.power.PowerModeStore
 import com.mdmesh.core.store.DeviceIdentity
@@ -66,6 +68,8 @@ class CheckInService : LifecycleService() {
     @Volatile private var graceUntil = 0L
     /** True while the kiosk is relaxed so an operator can join another Wi-Fi network. */
     @Volatile private var wifiRelaxed = false
+    /** Whether a kiosk payload is applied, so the notification only offers an exit that applies. */
+    @Volatile private var kioskActive = false
 
     @Suppress("DEPRECATION")
     private val powerReceiver = object : BroadcastReceiver() {
@@ -73,7 +77,7 @@ class CheckInService : LifecycleService() {
             when (intent?.action) {
                 android.net.ConnectivityManager.CONNECTIVITY_ACTION -> {
                     runCatching { eventLog.record(EventType.CONNECTIVITY) }
-                    runCatching { relaxForWifi() }
+                    lifecycleScope.launch { runCatching { relaxForWifi() } }
                 }
                 Intent.ACTION_BATTERY_LOW ->
                     runCatching { eventLog.record(EventType.LOW_BATTERY) }
@@ -95,22 +99,25 @@ class CheckInService : LifecycleService() {
      * This is the only route onto a new network for a device whose provisioned one is gone: the
      * server can push credentials, but not to a device it cannot reach.
      */
-    private fun relaxForWifi() {
-        lifecycleScope.launch {
-            val payload = kioskState.load() ?: return@launch
-            if (!payload.showWifi) return@launch
-            val offline = !isOnline()
-            if (offline == wifiRelaxed) return@launch
-            wifiRelaxed = offline
+    private suspend fun relaxForWifi() {
+        val payload = kioskState.load()
+        if ((payload != null) != kioskActive) {
+            kioskActive = payload != null
+            startAsForeground() // redraw: the exit action appears with kiosk and goes with it
+        }
+        if (payload == null) return
+        if (!payload.showWifi) return
+        val offline = !isOnline()
+        if (offline == wifiRelaxed) return
+        wifiRelaxed = offline
 
-            val allowed = (payload.allowedPackages + listOfNotNull(payload.pinPackage)).distinct()
-            runCatching {
-                kiosk.setAllowedPackages(if (offline) allowed + SETTINGS_PACKAGES else allowed)
-                // Only re-lock what the kiosk wanted locked: a configuration that leaves the status
-                // bar available must not come back from this with it disabled.
-                if (offline || payload.features.systemInfo != true) {
-                    dpmHandle.dpm.setStatusBarDisabled(dpmHandle.admin, !offline)
-                }
+        val allowed = (payload.allowedPackages + listOfNotNull(payload.pinPackage)).distinct()
+        runCatching {
+            kiosk.setAllowedPackages(if (offline) allowed + SETTINGS_PACKAGES else allowed)
+            // Only re-lock what the kiosk wanted locked: a configuration that leaves the status bar
+            // available must not come back from this with it disabled.
+            if (offline || payload.features.systemInfo != true) {
+                dpmHandle.dpm.setStatusBarDisabled(dpmHandle.admin, !offline)
             }
         }
     }
@@ -144,6 +151,16 @@ class CheckInService : LifecycleService() {
             lifecycleScope.launch {
                 delay(REACHABILITY_GRACE_MS + 1_000L)
                 reevaluateSocket() // drop back to adaptive gating once the grace window lapses
+            }
+            // Poll, don't wait to be told. A tablet carried to another site and powered on there
+            // never sees a connectivity transition — it simply comes up with no network — so a
+            // broadcast-driven check leaves it stranded in kiosk with no way onto a new network,
+            // which is precisely the situation the escape hatch exists for.
+            lifecycleScope.launch {
+                while (true) {
+                    runCatching { relaxForWifi() }
+                    delay(WIFI_CHECK_INTERVAL_MS)
+                }
             }
             lifecycleScope.launch {
                 runCatching { coordinator.runOnce() } // initial sync
@@ -231,12 +248,29 @@ class CheckInService : LifecycleService() {
 
     private fun startAsForeground() {
         ensureChannel()
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.checkin_notification_title))
             .setContentText(getString(R.string.checkin_notification_text))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
-            .build()
+        // In single-app kiosk the pinned app owns the screen, so the launcher's corner gesture sits
+        // behind it and can never be tapped — this is the one exit an operator can actually reach.
+        // It only opens the prompt; the password still decides.
+        if (kioskActive) {
+            builder.addAction(
+                0,
+                getString(R.string.checkin_notification_exit_kiosk),
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    Intent(this, KioskLauncherActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(KioskLauncherActivity.EXTRA_PROMPT_EXIT, true),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+        }
+        val notification: Notification = builder.build()
 
         // specialUse on 34+ (allowed from BOOT_COMPLETED, unlike dataSync on Android 15);
         // dataSync on 29..33 where specialUse doesn't exist and boot starts are unrestricted.
@@ -264,6 +298,9 @@ class CheckInService : LifecycleService() {
     }
 
     companion object {
+        /** How often the device re-checks whether it is stranded without a network. */
+        private const val WIFI_CHECK_INTERVAL_MS = 30_000L
+
         /** AOSP settings plus the package some OEM builds ship the network picker under. */
         private val SETTINGS_PACKAGES = listOf("com.android.settings", "com.android.settings.intelligence")
 
