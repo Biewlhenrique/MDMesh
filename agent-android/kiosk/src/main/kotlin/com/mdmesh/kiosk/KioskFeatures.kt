@@ -26,7 +26,11 @@ data class KioskToggles(
  */
 fun lockTaskFeatures(t: KioskToggles): Int {
     var f = 0
-    if (t.home == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_HOME
+    // The platform rejects NOTIFICATIONS without HOME — setLockTaskFeatures throws, and an admin
+    // who asked only for notifications would get no kiosk at all rather than a kiosk missing one
+    // toggle. Honour the dependency instead of handing the framework a combination it refuses.
+    val home = t.home == true || t.notifications == true
+    if (home) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_HOME
     if (t.recents == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
     if (t.notifications == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS
     if (t.systemInfo == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO

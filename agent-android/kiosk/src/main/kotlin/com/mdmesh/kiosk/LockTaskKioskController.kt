@@ -38,7 +38,10 @@ class LockTaskKioskController(
             dpm.setLockTaskPackages(admin, allowlist)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dpm.setLockTaskFeatures(admin, features)
+                // Guarded on its own: the framework rejects some combinations outright, and a
+                // device left OUT of lock task because one toggle was unacceptable is far worse
+                // than a locked device running the framework's default feature set.
+                runCatching { dpm.setLockTaskFeatures(admin, features) }
             }
 
             // Claim HOME so pressing home returns to the kiosk launcher.
