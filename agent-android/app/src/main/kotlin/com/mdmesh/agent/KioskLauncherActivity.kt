@@ -82,7 +82,7 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
     }
@@ -428,9 +428,7 @@ class KioskLauncherActivity : ComponentActivity() {
     companion object {
         /** Set by the notification action: open the password prompt straight away. */
         const val EXTRA_PROMPT_EXIT = "mdmesh.promptExit"
-    }
 
-    private companion object {
         /** A bounce back to HOME sooner than this after pinning is treated as the app crashing. */
         const val CRASH_BOUNCE_MS = 5_000L
 
