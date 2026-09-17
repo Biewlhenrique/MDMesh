@@ -20,7 +20,7 @@ import kotlinx.serialization.Serializable
  * Unknown / unsupported keys degrade to `unsupported`, mirroring the open-registry contract.
  */
 class PolicyApplyHandler(
-    private val toggles: Map<String, TogglePolicy>,
+    private val toggles: () -> Map<String, TogglePolicy>,
 ) : CommandHandler {
 
     override val type: String = "policy.apply"
@@ -39,7 +39,11 @@ class PolicyApplyHandler(
             ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), payload)
         }.getOrElse { return CommandResults.failed(command, "bad payload: ${it.message}") }
 
-        val toggle = toggles[parsed.policy]
+        // Resolved per command, never captured: every strategy probes isDeviceOwnerApp(), and a map
+        // built while the graph came up during provisioning — before Device-Owner status lands — is
+        // empty for the life of the process. The capability matrix re-probes on each check-in, so
+        // the device would advertise a policy and then refuse it.
+        val toggle = toggles()[parsed.policy]
             ?: return CommandResults.unsupported(command, "policy not supported: ${parsed.policy}")
 
         return when (val outcome = toggle.setEnabled(parsed.enabled)) {
